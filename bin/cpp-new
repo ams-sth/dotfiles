@@ -1,0 +1,101 @@
+#!/bin/zsh
+set -e
+
+if [[ -z "$1" ]]; then
+    echo "Usage: cpp-new <project-name>"
+    exit 1
+fi
+
+NAME="$1"
+
+if [[ -d "$NAME" ]]; then
+    echo "Error: '$NAME' already exists"
+    exit 1
+fi
+
+if git rev-parse --git-dir > /dev/null 2>&1; then
+    echo "Error: already inside a git repo. Run cpp-new from outside your projects folder."
+    exit 1
+fi
+
+mkdir -p "$NAME/src"
+cd "$NAME"
+
+cat > CMakeLists.txt << CMAKE
+cmake_minimum_required(VERSION 3.25)
+project($NAME LANGUAGES CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_executable($NAME src/main.cpp)
+CMAKE
+
+cat > CMakePresets.json << 'EOF'
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "default",
+      "displayName": "Debug · Ninja · Homebrew LLVM",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "/opt/homebrew/opt/llvm/bin/clang",
+        "CMAKE_CXX_COMPILER": "/opt/homebrew/opt/llvm/bin/clang++",
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "default",
+      "configurePreset": "default"
+    }
+  ]
+}
+EOF
+
+cat > conanfile.py << 'EOF'
+from conan import ConanFile
+from conan.tools.cmake import CMakeToolchain, CMakeDeps
+
+class App(ConanFile):
+    settings = "os", "compiler", "build_type", "arch"
+    generators = "CMakeToolchain", "CMakeDeps"
+
+    def requirements(self):
+        pass  # e.g. self.requires("catch2/3.7.1")
+EOF
+
+cat > .clangd << 'EOF'
+CompileFlags:
+  CompilationDatabase: build
+EOF
+
+cat > .gitignore << 'EOF'
+build/
+.DS_Store
+*.dSYM
+EOF
+
+cat > src/main.cpp << MAIN
+#include <print>
+
+int main() {
+    std::println("Hello from $NAME!");
+}
+MAIN
+
+git init -q
+git add .
+git commit -q -m "init: scaffold $NAME"
+
+echo ""
+echo "Created $NAME/"
+echo ""
+echo "  cd $NAME"
+echo "  cmake --preset default"
+echo "  cmake --build --preset default"
+echo "  ./build/$NAME"
