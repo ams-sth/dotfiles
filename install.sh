@@ -9,3 +9,6 @@ cp bin/cpp-new ~/.local/bin/
 chmod +x ~/.local/bin/cpp-new
 
 echo "Done!"
+
+# Symlink .zshrc
+ln -sf ~/dotfiles/.zshrc ~/.zshrc
